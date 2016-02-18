@@ -1,5 +1,6 @@
 logFile = "oreIdent.log"
 logH = fs.open(logFile, "w")
+os.loadAPI("notify")
 
 function log(str)
      logH.write("["..os.day().." "..
@@ -29,7 +30,7 @@ end
 length = tonumber(tArgs[1])
 height = tonumber(tArgs[2])
 
-log("Using length "..length)
+log("Using length "..length.." and height "..height)
 
 local f = fs.open("oreData","r")
 oreData = "a"
@@ -45,8 +46,9 @@ orePos = {}
 ignore = {["minecraft:stone"] = true,
           ["minecraft:flowing_lava"] = true,
           ["minecraft:water"] = true,
-          ["minecraft:flowing_water"] = true}
-local freePos = 2
+          ["minecraft:flowing_water"] = true,
+          ["harvestcraft:salt"] = true}
+local freePos = 1
 local x = 0
 local y = 0
 local bedrock = false
@@ -166,22 +168,32 @@ local function unload()
      dig("u")
      go("u")
      dig("u")
-     turtle.select(1)
+     turtle.select(13)
      place("d")
-     turtle.select(2)
+     turtle.select(14)
      place("u")
-     for i=3,14 do
-          turtle.select(i)
-          local item = turtle.getItemDetail()
-          if item and item.name == "minecraft:cobblestone" then
-               turtle.dropUp()
-          else
-               turtle.dropDown()
-          end
+     
+     os.loadAPI("fastInv")
+     dn = peripheral.wrap("bottom")
+     dn.pushItem("up",13,nil,13)
+     turtle.select(13)
+     turtle.equipLeft()
+     for i = 13,16 do
+      dn.pullItem("up",i,nil,i)
      end
-     turtle.select(1)
+     fastInv.compressItems()
+     
+     for i = 13,16 do
+      dn.pushItem("up",i,nil,i)
+     end
+     turtle.select(13)
+     turtle.equipLeft()
+     dn.pullItem("up",13,nil,13)
+     
+     
+     turtle.select(13)
      dig("d")
-     turtle.select(2)
+     turtle.select(14)
      dig("u")
      go("d")
      freePos = 3
@@ -193,7 +205,14 @@ local function refuel()
      if fl < 1000 then
           lprint("Low fuel level, refueling...")
           turtle.select(16)
-          turtle.refuel(2)
+          ok = turtle.refuel(1)
+          if not ok then
+           notify.send("Out of fuel.")
+           lprint("Out of fuel")
+           while not turtle.refuel(1) do
+            sleep(30)
+           end
+          end
           lprint("Charcoal left: "..turtle.getItemCount())
      end
 end
@@ -271,22 +290,23 @@ local function getPos(name)
            lprint("Failed to dig "..dir.." "..name..
            " which becomes "..tostring(val)..
            ", because: "..reason)
-           oreData[name] = "unbreakable"
-           saveOreData()
            return false, name, "unbreakable"
       end
-      
+      newData = turtle.getItemDetail()
       if val == nil then 
-           newData = turtle.getItemDetail()
            if newData == nil then
                 val = "No item"
            else
-                val = newData.name
+                  val = newData.name
            end
            oreData[name] = val
            lprint("Found new block: "..name
                  .."="..val.."@"..pos)
            saveOreData()
+      elseif newData and newData.name ~= val and not ignore[name] then
+        lprint("Ore not matching: "..
+               textutils.serialise(newData)..
+               "~="..val.." for ".."name")
       end
       -- print("Found "..name.."@"..pos)
  end
