@@ -1,5 +1,6 @@
 logFile = "oreIdent.log"
 logH = fs.open(logFile, "w")
+os.loadAPI("notify")
 
 function log(str)
      logH.write("["..os.day().." "..
@@ -13,6 +14,11 @@ end
 function lprint(str)
      log(str)
      print(str)
+end
+
+function lnprint(str)
+    lprint(str)
+    notify.send(str)
 end
 
 function lerror(e)
@@ -45,7 +51,8 @@ orePos = {}
 ignore = {["minecraft:stone"] = true,
           ["minecraft:flowing_lava"] = true,
           ["minecraft:water"] = true,
-          ["minecraft:flowing_water"] = true}
+          ["minecraft:flowing_water"] = true,
+          ["harvestcraft:salt"] = true}
 local freePos = 2
 local x = 0
 local y = 0
@@ -79,6 +86,11 @@ local function place(dir)
           return turtle.placeUp()
      elseif dir == "d" then
           return turtle.placeDown()
+     elseif dir == "b" then
+          halfTurn()
+          a,b = turtle.inspect()
+          halfTurn()
+          return a,b
      else
           error("Place: Unknown direction: "..dir)
      end
@@ -108,6 +120,11 @@ local function attack(dir)
           return turtle.attackUp()
      elseif dir == "d" then
           return turtle.attackDown()
+     elseif dir == "b" then
+          halfTurn()
+          ok, reason = turtle.attack()
+          halfTurn()
+          return ok, reason
      else
           lerror("attack: Unknown direction: "..dir)
      end
@@ -164,20 +181,20 @@ end
 local function unload()
      lprint("Unloading...")
      dig("u")
-     go("u")
-     dig("u")
+     --go("u")
+     --dig("u")
+     --turtle.select(1)
+     --place("d")
      turtle.select(1)
-     place("d")
-     turtle.select(2)
      place("u")
-     for i=3,14 do
+     for i=2,14 do
           turtle.select(i)
-          local item = turtle.getItemDetail()
-          if item and item.name == "minecraft:cobblestone" then
+          --local item = turtle.getItemDetail()
+          --if item and item.name == "minecraft:cobblestone" then
                turtle.dropUp()
-          else
-               turtle.dropDown()
-          end
+          --else
+          --     turtle.dropDown()
+          --end
      end
      turtle.select(1)
      dig("d")
@@ -190,11 +207,30 @@ end
 
 local function refuel()
      local fl = turtle.getFuelLevel()
+     if fl < 10 then
+      notify.send("Completely out of fuel")
+      lprint("No fuel left, waiting for fuel")
+      turtle.select(16)
+      while turtle.getFuelLevel()<10000 do
+       if not turtle.refuel(1) then
+        sleep(5)
+       end
+      end
+      lprint("Resuming...")
+      sleep(5)
+     end
      if fl < 1000 then
           lprint("Low fuel level, refueling...")
           turtle.select(16)
-          turtle.refuel(2)
-          lprint("Charcoal left: "..turtle.getItemCount())
+          if turtle.refuel(1) then
+           fuelLeft = turtle.getItemCount()
+           if fuelLeft == 0 then
+            notify.send("Out of fuel")
+           end
+           lprint("Charcoal left: "..turtle.getItemCount())
+          else
+           lprint("Failed to refuel")
+          end
      end
 end
 
@@ -271,8 +307,6 @@ local function getPos(name)
            lprint("Failed to dig "..dir.." "..name..
            " which becomes "..tostring(val)..
            ", because: "..reason)
-           oreData[name] = "unbreakable"
-           saveOreData()
            return false, name, "unbreakable"
       end
       
@@ -284,7 +318,7 @@ local function getPos(name)
                 val = newData.name
            end
            oreData[name] = val
-           lprint("Found new block: "..name
+           lnprint("Found new block: "..name
                  .."="..val.."@"..pos)
            saveOreData()
       end
